@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Detective Kristine game</title>
+<style>
+  :root{
+    --violet-1:#2e004f; --violet-2:#6a2fb3; --accent:#e07bff;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;font-family:"Comic Sans MS",system-ui,Segoe UI,Roboto;}
+  body{
+    background: linear-gradient(135deg,var(--violet-1),var(--violet-2));
+    display:flex; align-items:center; justify-content:center; padding:14px; color:#fff; overflow:hidden;
+  }
+
+  /* background GIF (change src at #bgImg) */
+  .bg{ position:fixed; inset:0; z-index:0; pointer-events:none; }
+  .bg img{ width:100%; height:100%; object-fit:cover; opacity:.28; filter: blur(.6px) saturate(1.05); }
+
+  /* floating decorations */
+  .decor { position:fixed; inset:0; z-index:1; pointer-events:none; }
+
+  /* stage */
+  .stage{ position:relative; z-index:3; width:min(96vw,720px); max-width:540px; display:flex; flex-direction:column; align-items:center; gap:12px; }
+
+  .title { font-weight:900; letter-spacing:.5px; text-shadow:0 6px 18px rgba(0,0,0,.45); font-size:1.05rem; }
+
+  /* door + keypad */
+  .doorWrap{ width:100%; display:flex; justify-content:center; align-items:center; }
+  .door{
+    width:100%; max-width:460px; height:380px; border-radius:14px; position:relative; overflow:hidden;
+    background:linear-gradient(180deg,#000,#050005); border:1px solid rgba(255,255,255,.04);
+    box-shadow: 0 20px 60px rgba(0,0,0,.6), 0 8px 28px rgba(107,27,141,.12);
+  }
+  .doorHalf{ position:absolute; top:0; bottom:0; width:50%; display:flex; align-items:center; justify-content:center; }
+  .door-left{ left:0; background: linear-gradient(180deg,#020202,#111); border-right:1px solid rgba(255,255,255,.03) }
+  .door-right{ right:0; background: linear-gradient(180deg,#070607,#121212); border-left:1px solid rgba(255,255,255,.03) }
+
+  /* panel with PIN */
+  .panel{
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    width:86%; max-width:380px; background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01));
+    padding:14px; border-radius:12px; border:1px solid rgba(255,255,255,.04); box-shadow:0 12px 30px rgba(0,0,0,.5); z-index:6;
+  }
+
+  .pinDisplay{ display:flex; justify-content:center; gap:12px; margin-bottom:12px; }
+  .pinHeart{
+    width:46px; height:46px; border-radius:10px; display:flex; align-items:center; justify-content:center;
+    background: rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.04); font-size:22px; transition:transform .12s;
+  }
+  .pinHeart.pop{ transform:scale(1.08); }
+
+  .pad{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .numBtn{
+    background: linear-gradient(180deg,#39103a,#1a081d); color:#fff; border-radius:12px;
+    padding:14px 0; text-align:center; font-weight:900; font-size:1.05rem; box-shadow:0 8px 22px rgba(0,0,0,.45); cursor:pointer; user-select:none;
+  }
+  .numBtn:active{ transform:translateY(2px); }
+  .smallBtn{ background: linear-gradient(180deg,#7a2db3,#52106d); }
+
+  .wrong{
+    position:absolute; left:50%; transform:translateX(-50%); top:8px; background:#ff5aa6; color:#fff; padding:8px 14px; border-radius:999px;
+    font-weight:800; display:none; z-index:9; box-shadow:0 8px 30px rgba(255,90,166,.15);
+  }
+
+  /* open door */
+  .door.open .door-left{ transform:translateX(-115%); transition:transform .9s cubic-bezier(.2,.9,.1,1); }
+  .door.open .door-right{ transform:translateX(115%); transition:transform .9s cubic-bezier(.2,.9,.1,1); }
+
+  /* reveal overlay */
+  .reveal{ position:fixed; inset:0; z-index:12; display:flex; align-items:center; justify-content:center; pointer-events:none; opacity:0; transition:opacity .35s; }
+  .reveal.show{ opacity:1; pointer-events:auto; }
+
+  .revealInner{
+    width:100%; height:100%; background:linear-gradient(180deg,#050005,#000); display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative;
+  }
+
+  .flash{ position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none; }
+  .flash.pop{ animation:flashAnim .5s ease forwards; }
+  @keyframes flashAnim{ 0%{opacity:0} 10%{opacity:.98} 100%{opacity:0} }
+
+  /* envelope design */
+  .envelope{
+    width:170px; height:120px; border-radius:16px; display:flex; align-items:center; justify-content:center; cursor:pointer;
+    background: linear-gradient(180deg,#fff,#ffdfee); box-shadow: 0 22px 50px rgba(0,0,0,.6);
+    position:relative; user-select:none;
+  }
+  .envelope .bow{
+    position:absolute; top:10px; width:36px; height:18px; left:50%; transform:translateX(-50%); border-radius:8px; background:linear-gradient(180deg,#ff8ad6,#ff5aa6);
+    box-shadow:0 8px 18px rgba(255,90,166,.15);
+  }
+  .wordReveal{ margin-top:12px; font-size:42px; color:#ffcee9; letter-spacing:4px; font-weight:900; text-shadow:0 6px 18px rgba(0,0,0,.6) }
+
+  .tapHint{ margin-top:10px; color:#ffd3f6; font-weight:700 }
+
+  .popEm{ position:absolute; font-size:28px; animation:popOut .9s ease forwards; pointer-events:none; text-shadow:0 6px 18px rgba(0,0,0,.5); }
+  @keyframes popOut { 0%{ transform:translateY(0) scale(.7); opacity:1 } 60%{ transform:translateY(-60px) scale(1.05) } 100%{ transform:translateY(-120px) scale(.8); opacity:0 } }
+
+  .letterBox{ display:none; margin-top:18px; width:min(92%,760px); background: linear-gradient(180deg,#0b0013,#170023);
+    border-radius:12px; padding:18px; color:#ffdff6; border:1px solid rgba(155,92,255,.16); box-shadow:0 16px 40px rgba(0,0,0,.6); max-height:60vh; overflow:auto; z-index:13; }
+
+  .playerRow{ display:none; gap:12px; align-items:center; margin-top:18px; color:#ffd3f6; z-index:14; }
+  .vinyl{ width:86px; height:86px; border-radius:50%; background: radial-gradient(circle,#111 40%, #333 70%); border:4px solid #666; display:flex; align-items:center; justify-content:center; }
+  .vinyl.spin{ animation:spin 3s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg);} }
+
+  footer{ position:fixed; bottom:12px; width:100%; text-align:center; font-size:12px; opacity:.6; z-index:50 }
+  @media(max-width:420px){ .door{height:420px} .envelope{width:150px;height:100px} .wordReveal{font-size:36px} }
+</style>
+</head>
+<body>
+
+  <!-- background GIF - change this src to any direct GIF you want -->
+  <div class="bg"><img id="bgImg" src="https://media.giphy.com/media/MDJ9IbxxvDUQM/giphy.gif" alt="background gif"></div>
+
+  <!-- floating decor -->
+  <div class="decor" id="decor"></div>
+
+  <div class="stage">
+    <div class="title">My Letter For You!</div>
+
+    <div class="doorWrap">
+      <div class="door" id="door">
+        <div class="doorHalf door-left"></div>
+        <div class="doorHalf door-right"></div>
+
+        <div class="panel" id="panel">
+          <div class="pinDisplay" id="pinDisplay">
+            <div class="pinHeart" id="h0">♡</div>
+            <div class="pinHeart" id="h1">♡</div>
+            <div class="pinHeart" id="h2">♡</div>
+            <div class="pinHeart" id="h3">♡</div>
+          </div>
+
+          <div class="pad" id="pad">
+            <div class="numBtn" data-num="1">1</div>
+            <div class="numBtn" data-num="2">2</div>
+            <div class="numBtn" data-num="3">3</div>
+
+            <div class="numBtn" data-num="4">4</div>
+            <div class="numBtn" data-num="5">5</div>
+            <div class="numBtn" data-num="6">6</div>
+
+            <div class="numBtn" data-num="7">7</div>
+            <div class="numBtn" data-num="8">8</div>
+            <div class="numBtn" data-num="9">9</div>
+
+            <div class="numBtn smallBtn" id="clearBtn">CLR</div>
+            <div class="numBtn" data-num="0">0</div>
+            <div class="numBtn smallBtn" id="backBtn">⌫</div>
+          </div>
+        </div>
+
+        <div class="wrong" id="wrong">Whoooopps try! try! try! again🤭</div>
+      </div>
+    </div>
+
+    <!-- reveal overlay (hidden until opened) -->
+    <div class="reveal" id="reveal">
+      <div class="revealInner" id="revealInner">
+        <div class="flash" id="flash"></div>
+
+        <div id="envelopeArea" style="text-align:center; z-index:20;">
+          <div class="envelope" id="envelope" aria-label="envelope">
+            <div class="bow"></div>
+          </div>
+          <div class="wordReveal" id="wordReveal" aria-hidden="true"></div>
+          <div class="tapHint" id="tapHint">Open the Envelope</div>
+        </div>
+
+        <div class="playerRow" id="playerRow">
+          <div style="font-size:22px">🎧</div>
+          <div id="vinyl" class="vinyl"></div>
+          <div style="font-weight:700; color:#ffc6f6; margin-left:8px;">Playing</div>
+        </div>
+
+        <div class="letterBox" id="letterBox" aria-live="polite"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>Hint: The First time i met you💗</footer>
+
+<script>
+/* ===== SETTINGS ===== */
+const PASSWORD = "0728";
+const AUDIO_SRC = 'https://archive.org/download/mitski-my-love-mine-all-mine/Mitski%20-%20My%20Love%20Mine%20All%20Mine.mp3';
+// If autoplay fails, user can press fallback button which opens this URL. For guaranteed autoplay, place a local 'song.mp3' in Acode folder and set AUDIO_SRC='song.mp3'
+
+const SEQUENCE = ['I','M','E','O','W','Y','O','U']; // letters revealed on each tap
+let pin = '';
+let taps = 0;
+let letterRevealed = false;
+
+/* ===== DOM refs ===== */
+const hEls = [document.getElementById('h0'), document.getElementById('h1'), document.getElementById('h2'), document.getElementById('h3')];
+const pad = document.getElementById('pad');
+const wrong = document.getElementById('wrong');
+const door = document.getElementById('door');
+const reveal = document.getElementById('reveal');
+const flash = document.getElementById('flash');
+const envelope = document.getElementById('envelope');
+const wordReveal = document.getElementById('wordReveal');
+const letterBox = document.getElementById('letterBox');
+const playerRow = document.getElementById('playerRow');
+const vinyl = document.getElementById('vinyl');
+const decor = document.getElementById('decor');
+
+/* ===== audio setup ===== */
+const audio = new Audio();
+audio.src = AUDIO_SRC;
+audio.preload = 'auto';
+audio.crossOrigin = 'anonymous';
+
+/* ===== initial letter text (default) ===== */
+let LETTER_TEXT = `Readwell
+
+We're just classmates but it feels like we're childhood friends when i first met you it was just like no definitely connection at all! But now I'm so really grateful god make us cross at each other on parallel road,hope you understand that but anyway i just want you to know that I'm really happy and thankfull at the same time because when I'm sad,feeling alone,and when my parents are so strict you knoh you handling me and the situation I'm in really well, by telling it to you it really make me feel like I'm fighting my problems in life not alone but with you and also you were right about crying, yk yeah I'm telling you i don't cry yes i don't cry physically but my soul is crying on my mind you were right and wrong at the same time yk i don't feel like this is still a letter it feels like I'm telling my problems again, but im just expressing my gratefully about you caring about me and i know this is funny but i always think about that you still with me when i finally successful and have freedom in life i didn't know that there's a girl like you that i could ever meet i hope you know your the first girl that ever do all the care and understanding to me also my mother cares about me but besides it's you,and yeah i accept it because in my head there's this me inside my mind questioning this, in the room full of your crushes you won't pick me, but instead you would choose me to be friend that's what i think but even tough that's our position i hope that care you show is still there and the understanding person you show that i meet still there i tell this to you with truly sincerity and honesty and yk were being together for too long and i just... Was so thankful about it were in the moments of happiness and lonelyness, sadness, sickness, but the most I've been waiting is our success, i hope we still together not a stranger when we both becomes successful and we would travel anywhere and it's funny but i still support you if we are separated and i would still be proud to whatever you have accomplished but in the end goodluck for both of us whatever happend or what ever situation were in i hope god guide us. that's all thank you for reading this letter it's not so long like yours but it's all about how i thankfully for all.
+
+— Ced`;
+
+/* ===== floating decorations (flowers/hearts/✨/🥰) ===== */
+(function makeDecor(){
+  const items = ['🥰','💜','🌸','✨','💖','💕','🌟'];
+  const total = 30;
+  for(let i=0;i<total;i++){
+    const el = document.createElement('div');
+    el.textContent = items[Math.floor(Math.random()*items.length)];
+    el.style.position = 'absolute';
+    el.style.left = Math.random()*100 + 'vw';
+    el.style.top = (10 + Math.random()*80) + 'vh';
+    el.style.fontSize = (10 + Math.random()*36) + 'px';
+    el.style.opacity = (0.35 + Math.random()*0.6);
+    el.style.transform = `translateY(${Math.random()*10}px)`;
+    decor.appendChild(el);
+    // gentle floating
+    (function loop(e){
+      const d = 3000 + Math.random()*4000;
+      setInterval(()=> {
+        e.style.transform = `translateY(${(Math.random()*40 - 20)}px)`;
+      }, d);
+    })(el);
+  }
+})();
+
+/* ===== keypad binding (mobile friendly) ===== */
+pad.addEventListener('pointerdown', e => {
+  const btn = e.target.closest('.numBtn');
+  if(!btn) return;
+  // visual press
+  btn.style.transform = 'translateY(2px)';
+});
+pad.addEventListener('pointerup', e => {
+  const btn = e.target.closest('.numBtn');
+  if(!btn) return;
+  btn.style.transform = '';
+  handlePadClick(btn);
+});
+
+/* handle pad clicks */
+function handlePadClick(btn){
+  const num = btn.dataset.num;
+  if(typeof num !== 'undefined'){
+    pressNum(num); return;
+  }
+  if(btn.id === 'clearBtn'){ clearPin(); return; }
+  if(btn.id === 'backBtn'){ backspace(); return; }
+}
+
+/* update hearts display */
+function updateHearts(){
+  for(let i=0;i<4;i++){
+    const el = hEls[i];
+    if(!pin[i]) { el.textContent = '♡'; el.style.color=''; }
+    else {
+      if(pin[i] === PASSWORD[i]){
+        el.textContent = '❤️'; el.style.color='';
+      } else {
+        el.textContent = '🖤'; el.style.color='';
+      }
+      el.classList.add('pop');
+      setTimeout(()=> el.classList.remove('pop'), 140);
+    }
+  }
+}
+
+/* keypad functions */
+function pressNum(n){
+  if(pin.length >= 4) return;
+  pin += String(n);
+  updateHearts();
+  if(pin.length === 4) setTimeout(checkPin, 220);
+}
+function clearPin(){ pin=''; updateHearts(); }
+function backspace(){ pin = pin.slice(0,-1); updateHearts(); }
+
+/* wrong message */
+function showWrong(){
+  wrong.classList.add('show');
+  setTimeout(()=> wrong.classList.remove('show'), 800);
+}
+
+/* check pin */
+function checkPin(){
+  if(pin === PASSWORD){
+    openDoor();
+  } else {
+    showWrong();
+    // leave color feedback briefly then clear
+    setTimeout(()=> { pin=''; updateHearts(); }, 700);
+  }
+}
+
+/* open sequence */
+function openDoor(){
+  door.classList.add('open');
+  setTimeout(()=> {
+    reveal.classList.add('show');
+    flash.classList.add('pop');
+    setTimeout(()=> flash.classList.remove('pop'), 700);
+    attemptAudioPlay();
+  }, 720);
+}
+
+/* try to autoplay audio (user gesture from keypad should allow it usually) */
+function attemptAudioPlay(){
+  audio.currentTime = 0;
+  const p = audio.play();
+  if(p && p.then){
+    p.then(()=> {
+      playerRow.style.display = 'flex'; vinyl.classList.add('spin');
+    }).catch(err=>{
+      // autoplay blocked -> show fallback small button
+      showPlayFallback();
+    });
+  } else {
+    // no promise - show fallback after 600ms
+    setTimeout(()=> showPlayFallback(), 600);
+  }
+  audio.onended = ()=> { vinyl.classList.remove('spin'); playerRow.style.display = 'none'; };
+  audio.onerror = ()=> showPlayFallback();
+}
+
+/* fallback open button */
+function showPlayFallback(){
+  if(document.getElementById('playFallback')) return;
+  const wrap = document.createElement('div');
+  wrap.id = 'playFallback';
+  wrap.style.marginTop = '14px';
+  wrap.style.textAlign = 'center';
+  wrap.innerHTML = `<div style="color:#ffd3f6;font-weight:700;margin-bottom:8px;">If music didn't start, open the song</div>
+    <div><button style="padding:10px 14px;border-radius:10px;border:none;background:linear-gradient(180deg,#7a2db3,#52106d);color:#fff;font-weight:800"
+      onclick="window.open('${encodeURI(AUDIO_SRC)}','_blank')">Open song</button></div>`;
+  document.getElementById('revealInner').appendChild(wrap);
+}
+
+/* envelope behavior: reveal sequence letters & spawn emojis */
+envelope.addEventListener('click', ()=> {
+  if(letterRevealed) return; // if already revealed, do nothing
+  // small envelope press animation
+  envelope.style.transform = 'scale(.96)';
+  setTimeout(()=> envelope.style.transform = '', 140);
+
+  // spawn some pop emojis from envelope center
+  spawnFromEnvelope();
+
+  // reveal next letter
+  if(taps < SEQUENCE.length){
+    const ch = SEQUENCE[taps];
+    wordReveal.textContent += ch;
+    taps++;
+  }
+  // after all taps reveal full letter content
+  if(taps >= SEQUENCE.length){
+    setTimeout(()=> revealFinalLetter(), 350);
+  }
+});
+
+/* spawn emojis */
+function spawnFromEnvelope(){
+  const choices = ['💜','💖','💕','🥰','✨','🌸'];
+  const count = 4 + Math.floor(Math.random()*3);
+  for(let i=0;i<count;i++){
+    const el = document.createElement('div');
+    el.className = 'popEm';
+    el.textContent = choices[Math.floor(Math.random()*choices.length)];
+    // position near envelope
+    const rect = envelope.getBoundingClientRect();
+    const left = rect.left + rect.width/2 + (Math.random()*120 - 60);
+    const top  = rect.top + rect.height/2 + (Math.random()*30 - 10);
+    el.style.left = left + 'px';
+    el.style.top = top + 'px';
+    document.body.appendChild(el);
+    setTimeout(()=> el.remove(), 900);
+  }
+}
+
+/* reveal final letter */
+function revealFinalLetter(){
+  letterRevealed = true;
+  // hide envelope area
+  const env = document.getElementById('envelopeArea');
+  if(env) env.style.display = 'none';
+
+  // show player row if audio playing
+  if(!audio.paused && audio.currentTime > 0){
+    playerRow.style.display = 'flex'; vinyl.classList.add('spin');
+  }
+
+  // show letter text box
+  letterBox.innerHTML = escapeHtml(LETTER_TEXT).replace(/\n/g,'<br>');
+  letterBox.style.display = 'block';
+}
+
+/* sanitize */
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[m]; }); }
+
+/* keyboard support (nice for testing on PC) */
+document.addEventListener('keydown', (e)=>{
+  if(e.key >= '0' && e.key <= '9') pressNumKey(e.key);
+  if(e.key === 'Backspace') { backspace(); }
+  if(e.key === 'Escape') { clearPin(); }
+});
+function pressNumKey(k){ pressNum(k); }
+
+/* small wrapper functions used by keypad pointer events */
+function pressNum(n){ pressNumImpl(n); }
+function pressNumImpl(n){
+  if(pin.length >= 4) return;
+  pin += String(n);
+  updateHearts();
+  if(pin.length === 4) setTimeout(checkPin, 220);
+}
+function clearPin(){ pin=''; updateHearts(); }
+function backspace(){ pin = pin.slice(0,-1); updateHearts(); }
+
+/* initial heart setup */
+updateHearts();
+
+/* prevent audio from continuing if page closed */
+window.addEventListener('beforeunload', ()=> { try{ audio.pause(); }catch(e){} });
+
+</script>
+</body>
+</html>
